@@ -1,0 +1,167 @@
+---
+title: "Regression Models Course Project"
+author: "Bi-Ruei, Chiu"
+output: html_document
+---
+
+
+## Synopsis
+
+In this report, we analyze the Motor Trend Car Road Tests dataset. And we try to answer the following questions :
+
++ Is an automatic or manual transmission better for MPG ?
++ Quantify the MPG difference between automatic and manual transmissions.
+
+## Exploratory Data Anaysis
+
+Firstly, we plot the variable Transmission (0 = automatic, 1 = manual), i.e. **am**, versus Miles/gallon, i.e. **mpg**.
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=4}
+library(car)
+library(UsingR)
+
+data(mtcars)
+
+# Convert category type data from numeric to category
+mtcars2 <- mtcars
+mtcars$am <- as.factor(mtcars$am)
+mtcars$cyl <- as.factor(mtcars$cyl)
+mtcars$vs <- as.factor(mtcars$vs)
+mtcars$gear <- as.factor(mtcars$gear)
+mtcars$carb <- as.factor(mtcars$carb)
+
+# Plot variables mpg vs am to get some idea of these two variables
+par(mfrow=c(1,2))
+plot(mtcars2$am, mtcars2$mpg, pch = 19, col = 'blue',
+    xlab = 'Transmission (0 = automatic, 1 = manual)', ylab = 'Miles/gallon')
+boxplot(mtcars2$mpg ~ mtcars2$am,
+    xlab = 'Transmission (0 = automatic, 1 = manual)', ylab = 'Miles/gallon')
+```
+
+And we can see the mean of manual transmission mode `r mean(mtcars$mpg[mtcars$am == 1])` is larger than automatic transmission mode `r mean(mtcars$mpg[mtcars$am == 0])`.Then we try to plot the relation between **mpg** and other 9 variables :
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=5.5, fig.width=8}
+# Plot Variables mpg vs all other variables to get idea of this dataset
+par(mfrow = c(3,3),mar=c(2,2,2,2))
+with(mtcars2, {
+  plot(cyl, mpg, pch = 19, col = mtcars$am, main = "Exploring 'cyl'", xlab = 'Cylinder', ylab = 'Miles/gallon')
+  plot(disp, mpg, pch = 19, col = mtcars$am, main = "Exploring 'disp'", xlab = 'Displacement', ylab = 'Miles/gallon')
+  plot(hp, mpg, pch = 19, col = mtcars$am, main = "Exploring 'hp'", xlab = 'Gross horsepower', ylab = 'Miles/gallon')
+  plot(drat, mpg, pch = 19, col = mtcars$am, main = "Exploring 'drat'", xlab = 'Rear axle ratio', ylab = 'Miles/gallon')
+  plot(wt, mpg, pch = 19, col = mtcars$am, main = "Exploring 'wt'", xlab = 'Weight (1000 lbs)', ylab = 'Miles/gallon')
+  plot(qsec, mpg, pch = 19, col = mtcars$am, main = "Exploring 'qsec'", xlab = '1/4 mile time', ylab = 'Miles/gallon')
+  plot(vs, mpg, pch = 19, col = mtcars$am, main = "Exploring 'vs'", xlab = 'V/S', ylab = 'Miles/gallon')
+  plot(gear, mpg, pch = 19, col = mtcars$am, main = "Exploring 'gear'", xlab = 'Forward gears', ylab = 'Miles/gallon')
+  plot(carb, mpg, pch = 19, col = mtcars$am, main = "Exploring 'carb'", xlab = 'Carburetors', ylab = 'Miles/gallon')
+})
+```
+
+## Model Finding
+
+We try to us linear regression models to fit the variable **am** with variable **mpg** first. And to find the effect of other variables of **mtcars** dataset on **mpg**, we then perform nested model testing by adding add them to **am**. We choose the following models :
+
++ Considering only **am** variable
++ Considering **am** and all other variables
++ Do nested modeling test with variables
+
+### Linear Model with **am**
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Fit mpg with variable am
+fit1 <- lm(mpg ~ am, data = mtcars)
+
+```
+
+The linear model has intercept **`r round(coef(fit1)[1],3)`** and slope **`r round(coef(fit1)[2],3)`**. We estimate an expected **`r round(coef(fit1)[2],3)`** increase in **mpg** for changing from automatic transmission mode to manual mode. The t-test for $H_0 : \beta_{am} = 0$ versus $H_a : \beta_{am} \neq 0$ is significant.
+
+We show the summary of coefficients and the confidence interval of them.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Summary of coefficients
+summary(fit1)$coefficients
+
+# Confidence interval of coefficients
+confint(fit1)
+```
+
+Then we plot this linear model and the residual plot and diagnostic of data.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=3}
+par(mfrow=c(1,2))
+# Plot this linear model
+plot(mtcars2$am, mtcars2$mpg, pch = 19, col = 'blue',
+    main = 'Linear Regression Model with am',
+    xlab = 'Transmission (0 = automatic, 1 = manual)', ylab = 'Miles/gallon')
+abline(coef(fit1)[1], coef(fit1)[2], col = 'red', lwd = 2)
+abline(confint(fit1)[1,1],confint(fit1)[2,1], col = 'orange', lwd = 1)
+abline(confint(fit1)[1,2],confint(fit1)[2,2], col = 'orange', lwd = 1)
+
+# Plot residual of this model
+plot(1:dim(mtcars)[1], fit1$residuals,
+    main = "Residual of this Model", xlab = "R:auto, B:manual", ylab = "Residual", 
+    col=c("red","blue"))
+abline(0, 0, col = 'black', lwd = 2)
+#legend("right",legend=c("Auto", "Manual"),col=c("red", "blue"),pch=1, cex=0.8)
+segments(x0=seq(1,32),y0=rep(0,32),x1=seq(1,32),y1=fit1$residuals,col=c("red","blue"))
+```
+
+We then do diagnostic of this model by finding the change in individual coefficients when the $i^{th}$ point is deleted in fitting it.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Diagnostic of this model
+round(dfbetas(fit1)[, 2],3)
+```
+
+Since the maximum absolute value is **`r max(abs(dfbetas(fit1)[, 2]))`**, which is within the confidence interval of $\beta$ : **`r round(confint(fit1)[2,1],3)`** and **`r round(confint(fit1)[2,2],3)`**, so there is no explicit outliner of this model.
+
+### Linear Model with **am** and all other variables
+
+Then we fit variable **mpg** with all other variables without intercept.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Fit mpg with all variables without intercept
+fitall <- lm(mpg ~ . - 1, data = mtcars)
+summary(fitall)
+```
+
+The variance inflation factors (VIF) of all variables are :
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Variance inflation factors (VIF) of all variables
+vif(fitall)
+```
+
+We then use these information to do the following nested model testing.
+
+### Nested Model Testing by Adding Other Variables
+
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Fit mpg with variable am 
+fit2 <- update(fit1, mpg ~ am + wt, data = mtcars)
+fit3 <- update(fit1, mpg ~ am + wt + hp, data = mtcars)
+fit4 <- update(fit1, mpg ~ am + wt + hp + qsec, data = mtcars)
+fit5 <- update(fit1, mpg ~ am + wt + hp + qsec + cyl, data = mtcars)
+
+anova(fit1, fit2, fit3, fit4, fit5)
+```
+
+This shows variables **wt** and **hp** has significant effect when added to linear model with **am** variable to form a new one. And **qsec** has less effect when it is added to this aforementioned $4^{th}$ model. While adding one more **cyl** variable, the resulted $5^{th}$ model has P-value `r anova(fit4, fit5)[2,"Pr(>F)"]` which failed to reject the null hypothesis $4^{th}$ and $5^{th}$ model is same.
+
+## Uncertainty and Inference
+
+We then do two group T tests of mtcars using **mpg** versus transmission model variable **am**.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tst <- t.test(mpg ~ am, paired = FALSE, data = mtcars)
+tst
+```
+
+Again, since the P-value of null hypothesis is **`r tst$p.value`** which is less than 0.05. So it shows strong evidence against the null hypothesis.
+
+## Summary
+
+We can conclude that :
+
++ **Manual** transmission mode is better for performance in Miles/(US) gallon.
++ The mean of manual transmission mode **`r mean(mtcars$mpg[mtcars$am == 1])`** is larger than automatic transmission mode **`r mean(mtcars$mpg[mtcars$am == 0])`**.

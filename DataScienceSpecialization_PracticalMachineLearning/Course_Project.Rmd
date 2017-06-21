@@ -1,0 +1,167 @@
+---
+title: "Predict the Manner of Excercise in Wearable Devices' Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+Using wearable devices it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this report, we analyze the collected data and find a way to predict the manner in which they did the exercise. This is the "classe" variable in the training set. We divide our training data into training set and validation set. Then use 'caret' packages to build a model with **Generalized Boosted Regression** modeling. This built model is applied to validation set to see it validity. We also use our prediction model to predict 20 different test cases.
+
+## Data Processing
+
+### Loading R-packages and read data from csv files.
+```{r cache=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# Loading necessary R packages
+library(caret)
+library(gbm)
+
+# Use multi-cores to speed up data processing
+library(parallel)
+library(doParallel)
+
+# set seed to make this report reproducible
+set.seed(12345)
+
+# read data from files
+train <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
+test <- read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+
+# convert 'classe' field to factor since this prediction is classification, 
+# not regression.
+train$classe <- as.factor(train$classe)
+```
+
+### Cleaning data and divide them into training set and validation set
+
+```{r cache=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# We perform data cleaning operation to remove aggregation fields having name 
+# like max, avg, stdev .... etc.
+usefields <-
+  c("roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt",
+    "gyros_belt_x", "gyros_belt_y", "gyros_belt_z",
+    "accel_belt_x", "accel_belt_y", "accel_belt_z",
+    "magnet_belt_x", "magnet_belt_y", "magnet_belt_z",
+    "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm",
+    "gyros_arm_x", "gyros_arm_y", "gyros_arm_z",
+    "accel_arm_x", "accel_arm_y", "accel_arm_z",
+    "magnet_arm_x", "magnet_arm_y", "magnet_arm_z",
+    "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell", 
+    "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z",
+    "accel_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z",
+    "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z",
+    "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm",
+    "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z",
+    "accel_forearm_x", "accel_forearm_y", "accel_forearm_z",
+    "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z",
+    "classe"
+  )
+
+# Split training data into training set (80%) and validation set (20%)
+trainsetPercentage = 0.8
+inTrain = createDataPartition(train$classe, p = trainsetPercentage)[[1]]
+
+# Separate training data to traing set and validation set
+trainset <- train[inTrain, usefields]
+validset <- train[-inTrain, usefields]
+```
+
+### Use Generalized Boosted Regression Modeling to fit the training data
+```{r cache=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# Training Control :
+# We use repeated K-folds cross-validation, K = 0, repeat 3 times.
+
+fitCtrl <- trainControl(
+  method = "repeatedcv", number = 10, repeats = 3,
+  verboseIter = FALSE,
+  allowParallel = TRUE
+)
+
+# Use 'parallel' and 'doParallel' packages for multi-cores
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+# We use stochastic gradient descent model for training.
+system.time(
+  gbm_model <-
+    train(classe ~ ., data = trainset, method = "gbm", trControl = fitCtrl, verbose =  FALSE)
+)
+
+# Stop parallel functionality
+stopCluster(cluster)
+```
+
+## Results
+
+Now we have the following prediction model.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+gbm_model
+```
+
+The importance of variables in our prediction model :
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(caret)
+
+varImp(gbm_model)
+```
+
+Then we draw the most important 4 features' plot for each excercise manner variable, i.e. classe.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=8.5}
+library(gridExtra)
+
+Aplot <- featurePlot(x = trainset[trainset$classe == 'A', c("roll_belt", "pitch_forearm", "yaw_belt", "magnet_dumbbell_z")],
+            y = trainset$classe[trainset$classe == 'A'],
+            plot = "pairs", type = c("p", "smooth"), span = .5, 
+            main = "Classe A Samples in Train Set")
+
+Bplot <- featurePlot(x = trainset[trainset$classe == 'B', c("roll_belt", "pitch_forearm", "yaw_belt", "magnet_dumbbell_z")],
+            y = trainset$classe[trainset$classe == 'B'],
+            plot = "pairs", type = c("p", "smooth"), span = .5, 
+            main = "Classe B Samples in Train Set")
+
+Cplot <- featurePlot(x = trainset[trainset$classe == 'C', c("roll_belt", "pitch_forearm", "yaw_belt", "magnet_dumbbell_z")],
+            y = trainset$classe[trainset$classe == 'C'],
+            plot = "pairs", type = c("p", "smooth"), span = .5, 
+            main = "Classe C Samples in Train Set")
+
+Dplot <- featurePlot(x = trainset[trainset$classe == 'D', c("roll_belt", "pitch_forearm", "yaw_belt", "magnet_dumbbell_z")],
+            y = trainset$classe[trainset$classe == 'D'],
+            plot = "pairs", type = c("p", "smooth"), span = .5, 
+            main = "Classe D Samples in Train Set")
+
+Eplot <- featurePlot(x = trainset[trainset$classe == 'E', c("roll_belt", "pitch_forearm", "yaw_belt", "magnet_dumbbell_z")],
+            y = trainset$classe[trainset$classe == 'E'],
+            plot = "pairs", type = c("p", "smooth"), span = .5, 
+            main = "Classe E Samples in Train Set")
+
+grid.arrange(Aplot, Bplot, ncol=2)
+grid.arrange(Cplot, Dplot, ncol=2)
+grid.arrange(Eplot, ncol=1)
+```
+
+
+## Validation of Prediction Model
+
+We then use this model to validate the validation set.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+validset_prediction <- predict(gbm_model, validset)
+precision_rate <- sum(validset_prediction == validset$classe) / length(validset$classe)
+precision_rate
+```
+
+The precision rate is `r precision_rate`.
+
+## Predicting 20 Test Cases
+
+At the final step, we apply our model to 20 different test cases.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+predict(gbm_model, test)
+```
